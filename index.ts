@@ -103,7 +103,7 @@ function move(gameState: GameState): MoveResponse {
     }
 
     // If y is 10, head is on the top of the board
-    case boardWidth - 1: {
+    case boardHeight - 1: {
       isMoveSafe.up = false;
       break;
     }

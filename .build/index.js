@@ -34,14 +34,16 @@ function end(gameState) {
   console.log("GAME OVER\n");
 }
 function move(gameState) {
+  const myHead = gameState.you.body[0];
+  const myNeck = gameState.you.body[1];
+  let boardWidth = gameState.board.width;
+  let boardHeight = gameState.board.height;
   let isMoveSafe = {
     up: true,
     down: true,
     left: true,
     right: true
   };
-  const myHead = gameState.you.body[0];
-  const myNeck = gameState.you.body[1];
   if (myNeck.x < myHead.x) {
     isMoveSafe.left = false;
   } else if (myNeck.x > myHead.x) {
@@ -51,8 +53,6 @@ function move(gameState) {
   } else if (myNeck.y > myHead.y) {
     isMoveSafe.up = false;
   }
-  let boardWidth = gameState.board.width;
-  let boardHeight = gameState.board.height;
   switch (myHead.x) {
     case 0: {
       isMoveSafe.left = false;
@@ -62,24 +62,17 @@ function move(gameState) {
       isMoveSafe.right = false;
       break;
     }
-    default: {
-      break;
-    }
   }
   switch (myHead.y) {
     case 0: {
       isMoveSafe.down = false;
       break;
     }
-    case boardWidth - 1: {
+    case boardHeight - 1: {
       isMoveSafe.up = false;
       break;
     }
-    default: {
-      break;
-    }
   }
-  let myBody = gameState.you.body;
   const safeMoves = Object.keys(isMoveSafe).filter((key) => isMoveSafe[key]);
   console.log(safeMoves);
   if (safeMoves.length == 0) {
