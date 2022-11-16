@@ -8,6 +8,8 @@ export interface BattlesnakeHandlers {
 }
 
 export default function runServer(handlers: BattlesnakeHandlers) {
+
+  // Express server
   const app = express();
   app.use(express.json());
 
@@ -21,6 +23,8 @@ export default function runServer(handlers: BattlesnakeHandlers) {
   });
 
   app.post("/move", (req: Request, res: Response) => {
+
+    // Executes the "move" function every time the request gets called, and passes gameState as argument
     res.send(handlers.move(req.body));
   });
 
