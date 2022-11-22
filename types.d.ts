@@ -6,6 +6,10 @@ export interface Coord {
   y: number;
 }
 
+export interface CoordNode extends Coord {
+  previousNode: CoordNode | null;
+}
+
 export interface Battlesnake {
   id: string;
   name: string;
@@ -30,6 +34,10 @@ export interface Board {
   food: Coord[];
   hazards: Coord[];
   snakes: Battlesnake[];
+}
+
+export interface NodeBoard extends Board {
+  coordNodes: CoordNode[];
 }
 
 export interface GameState {
