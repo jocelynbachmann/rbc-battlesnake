@@ -173,7 +173,7 @@ function move(gameState: GameState): MoveResponse {
         isMoveSafe.left = false;
         break;
       }
-      case boardWidth - 1: {
+      case boardWidth: {
         isMoveSafe.right = false;
         break;
       }
@@ -186,7 +186,7 @@ function move(gameState: GameState): MoveResponse {
         isMoveSafe.down = false;
         break;
       }
-      case boardHeight - 1: {
+      case boardHeight: {
         isMoveSafe.up = false;
         break;
       }
