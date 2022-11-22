@@ -10,8 +10,9 @@
 // To get you started we've included code to prevent your Battlesnake from moving backwards.
 // For more info see docs.battlesnake.com
 
+import { forEachChild, getTypeParameterOwner, isConditionalExpression } from 'typescript';
 import runServer from './server';
-import { GameState, InfoResponse, MoveResponse, Coord } from './types';
+import { GameState, InfoResponse, MoveResponse, Coord, Battlesnake } from './types';
 
 // info is called when you create your Battlesnake on play.battlesnake.com
 // and controls your Battlesnake's appearance
@@ -23,10 +24,10 @@ function info(): InfoResponse {
 
   return {
     apiversion: "1",
-    author: "",       // TODO: Your Battlesnake Username
-    color: "#888888", // TODO: Choose color
-    head: "default",  // TODO: Choose head
-    tail: "default",  // TODO: Choose tail
+    author: "Caraxes",       
+    color: "#800000", 
+    head: "evil",  
+    tail: "hook", 
   };
 }
 
@@ -40,6 +41,7 @@ function end(gameState: GameState): void {
   console.log("GAME OVER\n");
 }
 
+let previousGameState: GameState;
 
 // move is called on every turn and returns your next move
 // Valid moves are "up", "down", "left", or "right"
@@ -59,61 +61,78 @@ function move(gameState: GameState): MoveResponse {
     right: true
   };
 
-  // Logic for not turning into itself
+  // DON'T GO BACKWARDS
   if (myNeck.x < myHead.x) {
-
     // Neck is left of head, don't move left
     isMoveSafe.left = false;
   } else if (myNeck.x > myHead.x) {
-
     // Neck is right of head, don't move right
     isMoveSafe.right = false;
   } else if (myNeck.y < myHead.y) {
-
     // Neck is below head, don't move down
     isMoveSafe.down = false;
   } else if (myNeck.y > myHead.y) {
-
     // Neck is above head, don't move up
     isMoveSafe.up = false;
   }
 
-  // Logic that keeps it from moving out of bounds
-  switch (myHead.x) {
-
-    // If x is 0, head is on the left side of the board
-    case 0: {
-      isMoveSafe.left = false;
-      break;
-    }
-
-    // If x is 10, head is on the r side of the board
-    case boardWidth - 1: {
-      isMoveSafe.right = false;
-      break;
+  // DON'T MOVE OUT OF BOUNDS
+  if (isMoveSafe.left || isMoveSafe.right) {
+    switch (myHead.x) {
+      case 0: {
+        isMoveSafe.left = false;
+        break;
+      }
+      case boardWidth - 1: {
+        isMoveSafe.right = false;
+        break;
+      }
     }
   }
 
-  switch (myHead.y) {
-
-    // If y is 0, head is on the bottom of the board
-    case 0: {
-      isMoveSafe.down = false;
-      break;
-    }
-
-    // If y is 10, head is on the top of the board
-    case boardHeight - 1: {
-      isMoveSafe.up = false;
-      break;
+  if (isMoveSafe.down || isMoveSafe.up) {
+    switch (myHead.y) {
+      case 0: {
+        isMoveSafe.down = false;
+        break;
+      }
+      case boardHeight - 1: {
+        isMoveSafe.up = false;
+        break;
+      }
     }
   }
 
-  // TODO: Step 2 - Prevent your Battlesnake from colliding with itself
-  // let myBody = gameState.you.body;
+  // DON'T COLLIDE WITH BODY
+  const containsCoordExcludingTail = (snake: Coord[], coord: Coord) => {
+    const tail = snake[snake.length - 1];
+    for (var c of snake) {
+      if (c.x === coord.x && c.y === coord.y && (c.x !== tail.x || c.y !== tail.y)) return true;
+    }
+    return false;
+  }
 
-  // TODO: Step 3 - Prevent your Battlesnake from colliding with other Battlesnakes
-  // opponents = gameState.board.snakes;
+  let myBody = gameState.you.body;
+  const leftMove = { x: myHead.x - 1, y: myHead.y};
+  const rightMove = { x: myHead.x + 1, y: myHead.y};
+  const upMove = { x: myHead.x, y: myHead.y + 1};
+  const downMove = { x: myHead.x, y: myHead.y - 1};
+
+  if (isMoveSafe.down && containsCoordExcludingTail(myBody, downMove)) isMoveSafe.down = false;
+  if (isMoveSafe.up && containsCoordExcludingTail(myBody, upMove)) isMoveSafe.up = false;
+  if (isMoveSafe.left && containsCoordExcludingTail(myBody, leftMove)) isMoveSafe.left = false;
+  if (isMoveSafe.right && containsCoordExcludingTail(myBody, rightMove)) isMoveSafe.right = false;
+
+
+  // DON'T COLLIDE WITH OTHER SNAKES
+  const opponents = gameState.board.snakes;
+  opponents.forEach((opponent: Battlesnake) => {
+    const opponentBody = opponent.body;
+    if (isMoveSafe.down && containsCoordExcludingTail(opponentBody, downMove)) isMoveSafe.down = false;
+    if (isMoveSafe.up && containsCoordExcludingTail(opponentBody, upMove)) isMoveSafe.up = false;
+    if (isMoveSafe.left && containsCoordExcludingTail(opponentBody, leftMove)) isMoveSafe.left = false;
+    if (isMoveSafe.right && containsCoordExcludingTail(opponentBody, rightMove)) isMoveSafe.right = false;
+  })
 
   // Are there any safe moves left?
   const safeMoves = Object.keys(isMoveSafe).filter(key => isMoveSafe[key]);
@@ -130,6 +149,8 @@ function move(gameState: GameState): MoveResponse {
   // food = gameState.board.food;
 
   console.log(`MOVE ${gameState.turn}: ${nextMove}`)
+
+  previousGameState = gameState;
   return { move: nextMove };
 }
 
