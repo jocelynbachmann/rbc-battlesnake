@@ -10,13 +10,91 @@
 // To get you started we've included code to prevent your Battlesnake from moving backwards.
 // For more info see docs.battlesnake.com
 
-import { forEachChild, getTypeParameterOwner, isConditionalExpression } from 'typescript';
-import runServer from './server';
-import { GameState, InfoResponse, MoveResponse, Coord, Battlesnake } from './types';
-
 // info is called when you create your Battlesnake on play.battlesnake.com
 // and controls your Battlesnake's appearance
 // TIP: If you open your Battlesnake URL in a browser you should see this data
+
+import runServer from './server';
+import { GameState, InfoResponse, MoveResponse, Coord, CoordNode, Board, Battlesnake } from './types';
+import { AStarFinder } from "astar-typescript";
+
+function createArrayRepresentation(gameState: GameState): number[][] {
+  let array: number[][] = [];
+  const width = gameState.board.width - 1; //10
+  const height = gameState.board.height - 1; //10
+  for (let y = height; y >= 0; y--) {
+    let row: number[] = [];
+    for (let x = 0; x <= width; x++) {
+      let boardNode;
+      for (let snake of gameState.board.snakes) {
+        for (let snakePart of snake.body) {
+          if (snakePart.x === x && snakePart.y === y ||
+            snake.head.x === x && snake.head.y === y) {
+            boardNode = 1;
+            break;
+          } else {
+            boardNode = 0;
+          }
+        }
+        break;
+      }
+      row.push(boardNode);
+    }
+    array.push(row);
+  }
+  return array;
+}
+
+function getClosestFood(gameState: GameState): Coord[] {
+  let foodArray: Coord[] = gameState.board.food;
+  const head = gameState.you.head;
+  let query: Coord[] = [];
+  for (let f = 0; f < foodArray.length; f++) {
+
+    // returns closest food (on the specified array) to head
+    var closest = foodArray.reduce((prev, curr): Coord => {
+      if (Math.abs(curr.x - head.x) < Math.abs(prev.x - head.x) === true &&
+        Math.abs(curr.y - head.y) < Math.abs(prev.y - head.y) === true) {
+        return curr;
+      } else {
+        return prev;
+      }
+      //const xResult = Math.abs(curr.x - head.x) < Math.abs(prev.x - head.x) ? curr : prev;
+      //const yResult = Math.abs(curr.y - head.y) < Math.abs(prev.y - head.y) ? curr : prev;
+      //return (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev);
+    });
+
+    // If not already in the query, add it
+    if (query.find((coord) => coord.x === closest.x && coord.y === closest.y) === undefined) {
+      query.push(closest);
+    }
+
+    let a = foodArray.find((food) => { return food.x === closest.x && food.y === closest.y; })
+    if (a !== undefined) {
+      foodArray.splice(foodArray.indexOf(a), 1)
+    }
+  }
+  return query;
+}
+
+function translateCoordToDirection(gameState: GameState, coord: number[]): string {
+  const directions = { up: 'up', down: 'down', left: 'left', right: 'right' };
+  if (coord[0] < gameState.you.head.x) {
+    return directions.left;
+  }
+  else if (coord[0] > gameState.you.head.x) {
+    return directions.right;
+  }
+  else if (coord[1] > gameState.you.head.y) {
+    return directions.up;
+  }
+  else if (coord[1] < gameState.you.head.y) {
+    return directions.down;
+  }
+  else {
+    throw new Error('Error, the snake tried to move in an unorthodox manner.');
+  }
+}
 
 // Snake metadata
 function info(): InfoResponse {
@@ -41,18 +119,30 @@ function end(gameState: GameState): void {
   console.log("GAME OVER\n");
 }
 
-let previousGameState: GameState;
-
 // move is called on every turn and returns your next move
 // Valid moves are "up", "down", "left", or "right"
 // See https://docs.battlesnake.com/api/example-move for available data
 function move(gameState: GameState): MoveResponse {
 
+  // A* instance (pathfinder)
+  let aStarInstance: AStarFinder;
+  let arrayRepresentation: number[][] = createArrayRepresentation(gameState);
+  aStarInstance = new AStarFinder({
+    grid: {
+      matrix: arrayRepresentation
+    },
+    diagonalAllowed: false
+  });
+
+  // Head and neck references
   const myHead = gameState.you.body[0];
   const myNeck = gameState.you.body[1];
 
-  let boardWidth = gameState.board.width;
-  let boardHeight = gameState.board.height;
+  // CAUTION I made it so this is 0-indexed (just so it's easier to correlate data structures and stuff)
+  const boardWidth = gameState.board.width - 1;
+  const boardHeight = gameState.board.height - 1;
+
+  let foodBoard = getClosestFood(gameState);
 
   let isMoveSafe: { [key: string]: boolean; } = {
     up: true,
@@ -136,22 +226,18 @@ function move(gameState: GameState): MoveResponse {
 
   // Are there any safe moves left?
   const safeMoves = Object.keys(isMoveSafe).filter(key => isMoveSafe[key]);
-  console.log(safeMoves)
-  if (safeMoves.length == 0) {
-    console.log(`MOVE ${gameState.turn}: No safe moves detected! Moving down`);
-    return { move: "down" };
-  }
 
   // Choose a random move from the safe moves
   const nextMove = safeMoves[Math.floor(Math.random() * safeMoves.length)];
 
-  // TODO: Step 4 - Move towards food instead of random, to regain health and survive longer
-  // food = gameState.board.food;
-
-  console.log(`MOVE ${gameState.turn}: ${nextMove}`)
-
-  previousGameState = gameState;
-  return { move: nextMove };
+  // the snake currently just follows the nearest food source, it's NOT using safeMoves implementation (but it's flexible, so we should be able to adapt just fine)
+  let astartranslatedpath: string[] = [];
+  let help = aStarInstance.findPath(gameState.you.head, foodBoard[0]);
+  help.shift();
+  help.map((pathfindingCoord) => {
+    astartranslatedpath.push(translateCoordToDirection(gameState, pathfindingCoord))
+  });
+  return { move: astartranslatedpath[0] };
 }
 
 runServer({
@@ -160,3 +246,12 @@ runServer({
   move: move,
   end: end
 });
+
+// TODO: Step 2 - Prevent your Battlesnake from colliding with itself
+// let myBody = gameState.you.body;
+
+// TODO: Step 3 - Prevent your Battlesnake from colliding with other Battlesnakes
+// opponents = gameState.board.snakes;
+
+// TODO: Step 4 - Move towards food instead of random, to regain health and survive longer
+// food = gameState.board.food;
