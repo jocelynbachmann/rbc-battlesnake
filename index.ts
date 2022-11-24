@@ -18,6 +18,7 @@ import runServer from './server';
 import { GameState, InfoResponse, MoveResponse, Coord, CoordNode, Board, Battlesnake } from './types';
 import { AStarFinder } from "astar-typescript";
 
+// Creates a binary array representation of the board
 function createArrayRepresentation(gameState: GameState): number[][] {
   let array: number[][] = [];
   const width = gameState.board.width - 1; //10
@@ -45,13 +46,12 @@ function createArrayRepresentation(gameState: GameState): number[][] {
   return array;
 }
 
+// Returns a query with the closest food to the player's head (ordered from closest to furthest)
 function getClosestFood(gameState: GameState): Coord[] {
   let foodArray: Coord[] = gameState.board.food;
   const head = gameState.you.head;
   let query: Coord[] = [];
   for (let f = 0; f < foodArray.length; f++) {
-
-    // returns closest food (on the specified array) to head
     var closest = foodArray.reduce((prev, curr): Coord => {
       if (Math.abs(curr.x - head.x) < Math.abs(prev.x - head.x) === true &&
         Math.abs(curr.y - head.y) < Math.abs(prev.y - head.y) === true) {
@@ -59,41 +59,66 @@ function getClosestFood(gameState: GameState): Coord[] {
       } else {
         return prev;
       }
-      //const xResult = Math.abs(curr.x - head.x) < Math.abs(prev.x - head.x) ? curr : prev;
-      //const yResult = Math.abs(curr.y - head.y) < Math.abs(prev.y - head.y) ? curr : prev;
-      //return (Math.abs(curr - goal) < Math.abs(prev - goal) ? curr : prev);
     });
-
-    // If not already in the query, add it
-    if (query.find((coord) => coord.x === closest.x && coord.y === closest.y) === undefined) {
-      query.push(closest);
-    }
-
+    query.push(closest);
     let a = foodArray.find((food) => { return food.x === closest.x && food.y === closest.y; })
-    if (a !== undefined) {
-      foodArray.splice(foodArray.indexOf(a), 1)
-    }
+    foodArray.splice(foodArray.indexOf(a), 1)
   }
   return query;
 }
 
-function translateCoordToDirection(gameState: GameState, coord: number[]): string {
+// Translates an array of coordinates to direction strings (used for pathfinding)
+function translateCoordsToDirections(gameState: GameState, coordArray: number[][]): string[] {
   const directions = { up: 'up', down: 'down', left: 'left', right: 'right' };
-  if (coord[0] < gameState.you.head.x) {
-    return directions.left;
+  let translatedArray: string[] = [];
+  let xRef = gameState.you.head.x;
+  let yRef = gameState.you.head.y;
+
+  const wallDetection = gameState.you.head.x >= 0 &&
+    gameState.you.head.x < gameState.board.width - 1 &&
+    gameState.you.head.y >= 0 &&
+    gameState.you.head.y < gameState.board.height - 1;
+
+  for (let coordIndex = 0; coordIndex < coordArray.length; coordIndex++) {
+    let coord = coordArray[coordIndex];
+    console.log(translatedArray.length)
+
+    if (coord[0] < xRef && wallDetection) {
+      console.log("left")
+      translatedArray.push(directions.left);
+    }
+    else if (coord[0] > xRef && wallDetection) {
+      console.log("right")
+      translatedArray.push(directions.right);
+    }
+    else if (coord[1] > yRef && wallDetection) {
+      console.log("up")
+      translatedArray.push(directions.up);
+    }
+    else if (coord[1] < yRef && wallDetection) {
+      console.log("down")
+      translatedArray.push(directions.down);
+    }
+
+    xRef = coord[0];
+    yRef = coord[1];
   }
-  else if (coord[0] > gameState.you.head.x) {
-    return directions.right;
-  }
-  else if (coord[1] > gameState.you.head.y) {
-    return directions.up;
-  }
-  else if (coord[1] < gameState.you.head.y) {
-    return directions.down;
-  }
-  else {
-    throw new Error('Error, the snake tried to move in an unorthodox manner.');
-  }
+
+  return translatedArray;
+}
+
+// A* function for translating pathfinding
+function createTranslatedArray(gameState: GameState, aStarInstance: AStarFinder): string[] {
+  const foodBoard = getClosestFood(gameState);
+
+  let astartranslatedpath: string[] = [];
+
+  //var startTime = performance.now()
+  let help = aStarInstance.findPath(gameState.you.head, foodBoard[0]);
+  //var endTime = performance.now()
+  //console.log(`Call to HELP F took ${endTime - startTime} milliseconds`)
+
+  return translateCoordsToDirections(gameState, help);
 }
 
 // Snake metadata
@@ -102,10 +127,10 @@ function info(): InfoResponse {
 
   return {
     apiversion: "1",
-    author: "Caraxes",       
-    color: "#800000", 
-    head: "evil",  
-    tail: "hook", 
+    author: "Caraxes",
+    color: "#800000",
+    head: "evil",
+    tail: "hook",
   };
 }
 
@@ -124,15 +149,21 @@ function end(gameState: GameState): void {
 // See https://docs.battlesnake.com/api/example-move for available data
 function move(gameState: GameState): MoveResponse {
 
-  // A* instance (pathfinder)
-  let aStarInstance: AStarFinder;
-  let arrayRepresentation: number[][] = createArrayRepresentation(gameState);
-  aStarInstance = new AStarFinder({
-    grid: {
-      matrix: arrayRepresentation
-    },
-    diagonalAllowed: false
-  });
+  /* A* code
+   * 
+   * A* instance (pathfinder)
+   * let aStarInstance: AStarFinder;
+   * let arrayRepresentation: number[][] = createArrayRepresentation(gameState);
+   * aStarInstance = new AStarFinder({
+   *  grid: {
+   *    matrix: arrayRepresentation
+   *  },
+   *  diagonalAllowed: false,
+   *  includeStartNode: false,
+   *  weight: 0,
+   *});
+   *  let astartranslatedpath = createTranslatedArray(gameState, aStarInstance)
+   */
 
   // Head and neck references
   const myHead = gameState.you.body[0];
@@ -141,8 +172,6 @@ function move(gameState: GameState): MoveResponse {
   // CAUTION I made it so this is 0-indexed (just so it's easier to correlate data structures and stuff)
   const boardWidth = gameState.board.width - 1;
   const boardHeight = gameState.board.height - 1;
-
-  let foodBoard = getClosestFood(gameState);
 
   let isMoveSafe: { [key: string]: boolean; } = {
     up: true,
@@ -203,10 +232,10 @@ function move(gameState: GameState): MoveResponse {
   }
 
   let myBody = gameState.you.body;
-  const leftMove = { x: myHead.x - 1, y: myHead.y};
-  const rightMove = { x: myHead.x + 1, y: myHead.y};
-  const upMove = { x: myHead.x, y: myHead.y + 1};
-  const downMove = { x: myHead.x, y: myHead.y - 1};
+  const leftMove = { x: myHead.x - 1, y: myHead.y };
+  const rightMove = { x: myHead.x + 1, y: myHead.y };
+  const upMove = { x: myHead.x, y: myHead.y + 1 };
+  const downMove = { x: myHead.x, y: myHead.y - 1 };
 
   if (isMoveSafe.down && containsCoordExcludingTail(myBody, downMove)) isMoveSafe.down = false;
   if (isMoveSafe.up && containsCoordExcludingTail(myBody, upMove)) isMoveSafe.up = false;
@@ -226,18 +255,15 @@ function move(gameState: GameState): MoveResponse {
 
   // Are there any safe moves left?
   const safeMoves = Object.keys(isMoveSafe).filter(key => isMoveSafe[key]);
+  if (safeMoves.length == 0) {
+    console.log(`MOVE ${gameState.turn}: No safe moves detected! Moving down`);
+    return { move: "down" };
+  }
 
   // Choose a random move from the safe moves
   const nextMove = safeMoves[Math.floor(Math.random() * safeMoves.length)];
 
-  // the snake currently just follows the nearest food source, it's NOT using safeMoves implementation (but it's flexible, so we should be able to adapt just fine)
-  let astartranslatedpath: string[] = [];
-  let help = aStarInstance.findPath(gameState.you.head, foodBoard[0]);
-  help.shift();
-  help.map((pathfindingCoord) => {
-    astartranslatedpath.push(translateCoordToDirection(gameState, pathfindingCoord))
-  });
-  return { move: astartranslatedpath[0] };
+  return { move: nextMove };
 }
 
 runServer({

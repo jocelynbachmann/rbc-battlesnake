@@ -55,40 +55,74 @@ function getClosestFood(gameState) {
         return prev;
       }
     });
-    if (query.find((coord) => coord.x === closest.x && coord.y === closest.y) === void 0) {
-      query.push(closest);
-    }
+    query.push(closest);
     let a = foodArray.find((food) => {
       return food.x === closest.x && food.y === closest.y;
     });
-    if (a !== void 0) {
-      foodArray.splice(foodArray.indexOf(a), 1);
-    }
+    foodArray.splice(foodArray.indexOf(a), 1);
   }
+  console.log("--HEAD LOCATION--");
+  console.log(`x: ${gameState.you.head.x}, y: ${gameState.you.head.y}`);
+  console.log("--FOOD IN BOARD--");
+  console.log(gameState.board.food);
+  console.log("--FOOD ARRAY LENGTH--");
+  console.log(gameState.board.food.length);
+  console.log("--QUERY--");
+  console.log(query);
   return query;
 }
-function translateCoordToDirection(gameState, coord) {
+function translateCoordsToDirections(gameState, coordArray) {
   const directions = { up: "up", down: "down", left: "left", right: "right" };
-  if (coord[0] < gameState.you.head.x) {
-    return directions.left;
-  } else if (coord[0] > gameState.you.head.x) {
-    return directions.right;
-  } else if (coord[1] > gameState.you.head.y) {
-    return directions.up;
-  } else if (coord[1] < gameState.you.head.y) {
-    return directions.down;
-  } else {
-    throw new Error("Error, the snake tried to move in an unorthodox manner.");
+  let translatedArray = [];
+  let xRef = gameState.you.head.x;
+  let yRef = gameState.you.head.y;
+  const wallDetection = gameState.you.head.x >= 0 && gameState.you.head.x < gameState.board.width - 1 && gameState.you.head.y >= 0 && gameState.you.head.y < gameState.board.height - 1;
+  console.log("b4 for loop t");
+  for (let coordIndex = 0; coordIndex < coordArray.length; coordIndex++) {
+    let coord = coordArray[coordIndex];
+    console.log(translatedArray.length);
+    if (coord[0] < xRef && wallDetection) {
+      console.log("left");
+      translatedArray.push(directions.left);
+    } else if (coord[0] > xRef && wallDetection) {
+      console.log("right");
+      translatedArray.push(directions.right);
+    } else if (coord[1] > yRef && wallDetection) {
+      console.log("up");
+      translatedArray.push(directions.up);
+    } else if (coord[1] < yRef && wallDetection) {
+      console.log("down");
+      translatedArray.push(directions.down);
+    } else {
+    }
+    xRef = coord[0];
+    yRef = coord[1];
   }
+  console.log("--- T ARRAYYYYYYY INSIDE--");
+  console.log(translatedArray);
+  return translatedArray;
+}
+function createTranslatedArray(gameState, aStarInstance) {
+  const foodBoard = getClosestFood(gameState);
+  console.log("--CLOSEST F--");
+  console.log(foodBoard);
+  let astartranslatedpath = [];
+  var startTime = performance.now();
+  let help = aStarInstance.findPath(gameState.you.head, foodBoard[0]);
+  var endTime = performance.now();
+  console.log(`Call to HELP F took ${endTime - startTime} milliseconds`);
+  console.log("--HELP F--");
+  console.log(help);
+  return translateCoordsToDirections(gameState, help);
 }
 function info() {
   console.log("INFO");
   return {
     apiversion: "1",
-    author: "",
-    color: "#888888",
-    head: "default",
-    tail: "default"
+    author: "Caraxes",
+    color: "#800000",
+    head: "evil",
+    tail: "hook"
   };
 }
 function start(gameState) {
@@ -104,13 +138,15 @@ function move(gameState) {
     grid: {
       matrix: arrayRepresentation
     },
-    diagonalAllowed: false
+    diagonalAllowed: false,
+    includeStartNode: false,
+    weight: 0
   });
+  let astartranslatedpath = createTranslatedArray(gameState, aStarInstance);
   const myHead = gameState.you.body[0];
   const myNeck = gameState.you.body[1];
   const boardWidth = gameState.board.width - 1;
   const boardHeight = gameState.board.height - 1;
-  let foodBoard = getClosestFood(gameState);
   let isMoveSafe = {
     up: true,
     down: true,
@@ -126,35 +162,76 @@ function move(gameState) {
   } else if (myNeck.y > myHead.y) {
     isMoveSafe.up = false;
   }
-  switch (myHead.x) {
-    case 0: {
-      isMoveSafe.left = false;
-      break;
-    }
-    case boardWidth: {
-      isMoveSafe.right = false;
-      break;
+  if (isMoveSafe.left || isMoveSafe.right) {
+    switch (myHead.x) {
+      case 0: {
+        isMoveSafe.left = false;
+        break;
+      }
+      case boardWidth: {
+        isMoveSafe.right = false;
+        break;
+      }
     }
   }
-  switch (myHead.y) {
-    case 0: {
+  if (isMoveSafe.down || isMoveSafe.up) {
+    switch (myHead.y) {
+      case 0: {
+        isMoveSafe.down = false;
+        break;
+      }
+      case boardHeight: {
+        isMoveSafe.up = false;
+        break;
+      }
+    }
+  }
+  const containsCoordExcludingTail = (snake, coord) => {
+    const tail = snake[snake.length - 1];
+    for (var c of snake) {
+      if (c.x === coord.x && c.y === coord.y && (c.x !== tail.x || c.y !== tail.y))
+        return true;
+    }
+    return false;
+  };
+  let myBody = gameState.you.body;
+  const leftMove = { x: myHead.x - 1, y: myHead.y };
+  const rightMove = { x: myHead.x + 1, y: myHead.y };
+  const upMove = { x: myHead.x, y: myHead.y + 1 };
+  const downMove = { x: myHead.x, y: myHead.y - 1 };
+  if (isMoveSafe.down && containsCoordExcludingTail(myBody, downMove))
+    isMoveSafe.down = false;
+  if (isMoveSafe.up && containsCoordExcludingTail(myBody, upMove))
+    isMoveSafe.up = false;
+  if (isMoveSafe.left && containsCoordExcludingTail(myBody, leftMove))
+    isMoveSafe.left = false;
+  if (isMoveSafe.right && containsCoordExcludingTail(myBody, rightMove))
+    isMoveSafe.right = false;
+  const opponents = gameState.board.snakes;
+  opponents.forEach((opponent) => {
+    const opponentBody = opponent.body;
+    if (isMoveSafe.down && containsCoordExcludingTail(opponentBody, downMove))
       isMoveSafe.down = false;
-      break;
-    }
-    case boardHeight: {
+    if (isMoveSafe.up && containsCoordExcludingTail(opponentBody, upMove))
       isMoveSafe.up = false;
-      break;
-    }
-  }
-  const safeMoves = Object.keys(isMoveSafe).filter((key) => isMoveSafe[key]);
-  const nextMove = safeMoves[Math.floor(Math.random() * safeMoves.length)];
-  let astartranslatedpath = [];
-  let help = aStarInstance.findPath(gameState.you.head, foodBoard[0]);
-  help.shift();
-  help.map((pathfindingCoord) => {
-    astartranslatedpath.push(translateCoordToDirection(gameState, pathfindingCoord));
+    if (isMoveSafe.left && containsCoordExcludingTail(opponentBody, leftMove))
+      isMoveSafe.left = false;
+    if (isMoveSafe.right && containsCoordExcludingTail(opponentBody, rightMove))
+      isMoveSafe.right = false;
   });
-  return { move: astartranslatedpath[0] };
+  const safeMoves = Object.keys(isMoveSafe).filter((key) => isMoveSafe[key]);
+  if (safeMoves.length == 0) {
+    console.log(`MOVE ${gameState.turn}: No safe moves detected! Moving down`);
+    return { move: "down" };
+  }
+  const nextMove = safeMoves[Math.floor(Math.random() * safeMoves.length)];
+  console.log("-- T PATH --");
+  console.log(astartranslatedpath);
+  console.log("TURN " + gameState.turn + " ++++++++++++++++++++++++++++++");
+  let movevar = astartranslatedpath[0];
+  console.log("MOVEVAR");
+  console.log(movevar);
+  return { move: movevar };
 }
 (0, import_server.default)({
   info,
